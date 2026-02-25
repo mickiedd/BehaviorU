@@ -228,6 +228,20 @@ bool UBehaviacBehaviorTree::LoadFromXML(const FString& XMLContent)
 	if (FirstNode)
 	{
 		RootNode = ParseNodeFromXML(FirstNode, this);
+		
+		if (RootNode)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Behaviac] ✅ XML parsed! RootNode=%s, ChildCount=%d"), 
+				*RootNode->GetName(), RootNode->GetChildCount());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[Behaviac] ❌ ParseNodeFromXML returned NULL!"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Behaviac] ❌ No <node> element found in XML!"));
 	}
 
 	return RootNode != nullptr;
