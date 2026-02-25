@@ -115,7 +115,7 @@ function buildPalette() {
   const search = document.getElementById('palette-search');
   const groups = {};
   for (const n of NODE_TYPES) {
-    if (n.type === 'Root') continue;
+    if (n.type === '__Root__') continue;
     if (!groups[n.category]) groups[n.category] = [];
     groups[n.category].push(n);
   }
@@ -403,7 +403,7 @@ function onContextMenu(e) {
     showCtxMenu(e.clientX, e.clientY, [
       { label: 'Add Node ▶', submenu: catOrder.map(cat => ({
           label: catLabel[cat],
-          submenu: NODE_TYPES.filter(n => n.category===cat && n.type!=='Root').map(n => ({
+          submenu: NODE_TYPES.filter(n => n.category===cat && n.type!=='__Root__').map(n => ({
             label: n.type,
             action: () => createNode(n.type, x - NODE_W/2, y - NODE_H/2)
           }))
@@ -538,13 +538,13 @@ function duplicateNodes(forceIds) {
 function setAsRoot(node) {
   const g = activeGraph();
   // Remove existing Root
-  const oldRoot = g.nodes.find(n => n.type === 'Root');
+  const oldRoot = g.nodes.find(n => n.type === '__Root__');
   if (oldRoot) {
     g.nodes = g.nodes.filter(n => n.id !== oldRoot.id);
     g.edges = g.edges.filter(e => e.from !== oldRoot.id && e.to !== oldRoot.id);
   }
   // Add new Root above this node
-  const rootNode = createNode('Root', node.x + (NODE_W - NODE_W) / 2, node.y - 110);
+  const rootNode = createNode('__Root__', node.x + (NODE_W - NODE_W) / 2, node.y - 110);
   g.edges.push({ from: rootNode.id, to: node.id });
   undoStack.push(snapshot());
   renderer.markDirty();
@@ -570,11 +570,11 @@ function bindToolbar() {
   });
   document.getElementById('btn-add-root').addEventListener('click', () => {
     const g = activeGraph();
-    if (!g.nodes.find(n => n.type === 'Root')) {
+    if (!g.nodes.find(n => n.type === '__Root__')) {
       const w = document.getElementById('canvas-wrap');
       const cx = w.clientWidth / 2, cy = 80;
       const { x, y } = renderer.toWorld(cx, cy);
-      createNode('Root', x - NODE_W/2, y - NODE_H/2);
+      createNode('__Root__', x - NODE_W/2, y - NODE_H/2);
     }
   });
   document.getElementById('btn-auto-layout').addEventListener('click', () => {

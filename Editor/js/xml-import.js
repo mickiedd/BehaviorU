@@ -1,6 +1,6 @@
 // xml-import.js — Parse behaviac XML into graph nodes/edges
 // Supports both formats:
-//   <property name="Key" value="Val"/>   ← plugin format (BT_SimpleNPC.xml style)
+//   <property name="Key" value="Val"/>   ← plugin format
 //   <property Key="Val"/>                ← legacy attribute-per-key format
 
 function importFromXML(xmlStr, graph) {
@@ -29,31 +29,27 @@ function importFromXML(xmlStr, graph) {
     return idCounter++;
   }
 
-  /** Read a <property> element → {key, value} normalizing both formats + legacy key names */
+  /** Read <property> children → {key: value} map, normalizing both wire formats */
   function readProps(el) {
     const props = {};
     for (const propEl of el.children) {
       if (propEl.tagName !== 'property') continue;
-
       const nameAttr  = propEl.getAttribute('name');
       const valueAttr = propEl.getAttribute('value');
-
       if (nameAttr !== null) {
-        // Standard format: <property name="Key" value="Val"/>
-        props[normKey(nameAttr)] = valueAttr ?? '';
+        props[normPropKey(nameAttr)] = valueAttr ?? '';
       } else {
-        // Legacy attribute format: <property Key="Val"/>
         for (let i = 0; i < propEl.attributes.length; i++) {
           const a = propEl.attributes[i];
-          props[normKey(a.name)] = a.value;
+          props[normPropKey(a.name)] = a.value;
         }
       }
     }
     return props;
   }
 
-  /** Normalize legacy key names to plugin-standard keys */
-  function normKey(k) {
+  /** Normalize legacy property key names */
+  function normPropKey(k) {
     const map = {
       'LeftOperand':    'Opl',
       'RightOperand':   'Opr',
@@ -63,40 +59,64 @@ function importFromXML(xmlStr, graph) {
     return map[k] || k;
   }
 
-  /** Warn about mismatched properties (e.g. Method on a Condition node) */
-  function warnBadProps(type, props) {
-    if (type === 'Condition' && props.Method && !props.Opl) {
-      console.warn(`[BehaviorU] Condition node id has "Method" but no "Opl"/"Opr" — ` +
-        `did you mean an Action node? Method="${props.Method}" will be shown but won't execute as a condition.`);
-      // Surface it anyway as extraProps so it's visible
-      props.__warning = `Method="${props.Method}" (should be Opl/Operator/Opr)`;
-    }
+  /**
+   * Normalize class names to editor type strings.
+   * Handles:
+   *  - "behaviac::Selector" → "Selector"  (namespace strip)
+   *  - "Root"               → "__Root__"  (plugin has no Root class)
+   *  - "WaitForSignal"      → "WaitforSignal" (case fix)
+   *  - "AlwaysFailure"      → "DecoratorAlwaysFailure" (prefix fix)
+   *  - "ReferenceBehavior"  → "ReferencedBehavior" (spelling fix)
+   */
+  function normType(rawClass) {
+    // Strip namespace prefix
+    let t = rawClass.split(':').pop().trim();
+
+    // Canonical remaps
+    const remap = {
+      // Root wrapper — editor uses __Root__ since plugin has no Root class
+      'Root':             '__Root__',
+      // Decorator prefix — plugin uses "Decorator" prefix on these
+      'AlwaysFailure':    'DecoratorAlwaysFailure',
+      'AlwaysRunning':    'DecoratorAlwaysRunning',
+      'AlwaysSuccess':    'DecoratorAlwaysSuccess',
+      'Not':              'DecoratorNot',
+      'Loop':             'DecoratorLoop',
+      'LoopUntil':        'DecoratorLoopUntil',
+      'Repeat':           'DecoratorRepeat',
+      'Count':            'DecoratorCount',
+      'CountLimit':       'DecoratorCountLimit',
+      'Time':             'DecoratorTime',
+      'Frames':           'DecoratorFrames',
+      'FailureUntil':     'DecoratorFailureUntil',
+      'SuccessUntil':     'DecoratorSuccessUntil',
+      'Iterator':         'DecoratorIterator',
+      'Log':              'DecoratorLog',
+      'Weight':           'DecoratorWeight',
+      // Name fixes
+      'WaitForSignal':    'WaitforSignal',
+      'ReferenceBehavior':'ReferencedBehavior',
+    };
+    return remap[t] || t;
   }
 
   function parseNode(el, depth, sibIdx, parentId) {
     const rawId   = el.getAttribute('id');
     const rawType = el.getAttribute('class') || el.tagName;
-    const id   = allocId(rawId);
-    // Normalise class: "behaviac::Selector" → "Selector"
-    const type = rawType.split(':').pop();
+    const id      = allocId(rawId);
+    const type    = normType(rawType);
 
     const props = readProps(el);
-    warnBadProps(type, props);
-
-    // Use the "Name" property as the display label if present
-    const label = props.Name || type;
-    // Remove Name from props so it doesn't pollute the schema fields
+    // Use the "Name" property as display label; remove it from props
+    const label = props.Name || getDisplayLabel(type);
     delete props.Name;
 
-    // Position — BFS will reorder via autoLayout at the end
     const x = sibIdx * 200 + 60;
     const y = depth  * 130 + 60;
 
-    const node = { id, type, label, props, x, y, w: 180, h: 72, extraProps:{} };
-    graph.nodes.push(node);
+    graph.nodes.push({ id, type, label, props, x, y, w: 180, h: 72, extraProps:{} });
     if (parentId !== null) graph.edges.push({ from: parentId, to: id });
 
-    // Children
     let childIdx = 0;
     for (const child of el.children) {
       if (child.tagName === 'node') {
@@ -110,10 +130,10 @@ function importFromXML(xmlStr, graph) {
   function parseAttachment(el, parentId) {
     const rawId   = el.getAttribute('id');
     const rawType = el.getAttribute('class') || 'Precondition';
-    const id   = allocId(rawId);
-    const type = rawType.split(':').pop();
-    const props = readProps(el);
-    const label = props.Name || type;
+    const id      = allocId(rawId);
+    const type    = normType(rawType);
+    const props   = readProps(el);
+    const label   = props.Name || getDisplayLabel(type);
     delete props.Name;
 
     const parentNode = graph.nodes.find(n => n.id === parentId);
@@ -124,13 +144,23 @@ function importFromXML(xmlStr, graph) {
     graph.edges.push({ from: parentId, to: id });
   }
 
-  // Find & process top-level nodes
+  // The behavior XML has no Root wrapper — add a visual __Root__ node
+  const rootId = allocId(null);
+  graph.nodes.push({ id: rootId, type: '__Root__', label: 'Root', props:{}, x:400, y:60, w:180, h:72, extraProps:{} });
+
   let sibIdx = 0;
   for (const child of behavior.children) {
-    if (child.tagName === 'node') parseNode(child, 0, sibIdx++, null);
+    if (child.tagName === 'node') {
+      // If the first node IS a Root class, don't double-wrap
+      const childClass = normType(child.getAttribute('class') || '');
+      if (childClass === '__Root__') {
+        parseNode(child, 0, sibIdx++, null);
+      } else {
+        parseNode(child, 1, sibIdx++, rootId);
+      }
+    }
   }
 
-  // Re-layout for a clean visual
   autoLayout(graph);
 }
 
@@ -150,7 +180,7 @@ function autoLayout(graph) {
 
   const nodeById = Object.fromEntries(graph.nodes.map(n => [n.id, n]));
   const roots    = graph.nodes.filter(n => !parentOf[n.id] && !isAttachment(n.type));
-  const DX = 200, DY = 130;
+  const DX = 210, DY = 140;
 
   function subW(id) {
     const kids = childMap[id] || [];
@@ -174,7 +204,7 @@ function autoLayout(graph) {
       .filter(e => e.from === id)
       .map(e => graph.nodes.find(nn => nn.id === e.to))
       .filter(nn => nn && isAttachment(nn.type));
-    atts.forEach((an, i) => { an.x = n.x + 195; an.y = n.y + i * 80; });
+    atts.forEach((an, i) => { an.x = n.x + 195; an.y = n.y + i * 85; });
   }
 
   let sx = 400;

@@ -262,7 +262,7 @@ class GraphRenderer {
         add('time', (p.Time || '\u2014') + ' s', '#c3e88d'); break;
       case 'WaitFrames':
         add('frames', p.Frames || '\u2014', '#c3e88d'); break;
-      case 'WaitForSignal':
+      case 'WaitforSignal':
         add('signal', p.Signal, '#f78c6c'); break;
       case 'End':
         add('status', p.EndStatus || 'BT_SUCCESS', resultColor(p.EndStatus)); break;
@@ -278,29 +278,29 @@ class GraphRenderer {
       case 'False': addFull('\u2717  Always Failure', '#f44747'); break;
       case 'ConditionBase': addFull('(custom condition)', 'rgba(255,255,255,0.35)'); break;
 
-      // ── Decorators ──
-      case 'Loop':
+      // ── Decorators ── (plugin class names have "Decorator" prefix)
+      case 'DecoratorLoop':
         add('count', (p.Count === '-1' || p.Count === -1) ? '\u221e' : (p.Count || '\u221e'), '#c3e88d'); break;
-      case 'LoopUntil':
+      case 'DecoratorLoopUntil':
         add('count', p.Count || '1', '#c3e88d');
         add('until', p.Until || 'true', '#ffd580'); break;
-      case 'Repeat': case 'Count':
+      case 'DecoratorRepeat': case 'DecoratorCount':
         add('count', p.Count || '1', '#c3e88d'); break;
-      case 'CountLimit':
+      case 'DecoratorCountLimit':
         add('max', p.Count || '1', '#c3e88d'); break;
-      case 'Time':   add('time', (p.Time || '\u2014') + ' s', '#c3e88d'); break;
-      case 'Frames': add('frames', p.Frames || '\u2014', '#c3e88d'); break;
-      case 'FailureUntil': add('fail \u00d7', p.Count || '1', '#f44747'); break;
-      case 'SuccessUntil': add('ok \u00d7', p.Count || '1', '#4ec9b0'); break;
-      case 'Iterator':
+      case 'DecoratorTime':   add('time', (p.Time || '\u2014') + ' s', '#c3e88d'); break;
+      case 'DecoratorFrames': add('frames', p.Frames || '\u2014', '#c3e88d'); break;
+      case 'DecoratorFailureUntil': add('fail \u00d7', p.Count || '1', '#f44747'); break;
+      case 'DecoratorSuccessUntil': add('ok \u00d7', p.Count || '1', '#4ec9b0'); break;
+      case 'DecoratorIterator':
         add('list', p.Opl, '#7ec8e3');
         add('var',  p.Opr, '#b5cea8'); break;
-      case 'Log':    add('msg', p.Message, '#b5cea8'); break;
-      case 'Weight': add('w', p.Weight || '1.0', '#ffd580'); break;
-      case 'Not':           addFull('\u27f5 inverts child',  'rgba(255,255,255,0.4)'); break;
-      case 'AlwaysSuccess': addFull('\u2192 always \u2713', '#4ec9b0'); break;
-      case 'AlwaysFailure': addFull('\u2192 always \u2717', '#f44747'); break;
-      case 'AlwaysRunning': addFull('\u2192 always \u27f3', '#ffd580'); break;
+      case 'DecoratorLog':    add('msg', p.Message, '#b5cea8'); break;
+      case 'DecoratorWeight': add('w', p.Weight || '1.0', '#ffd580'); break;
+      case 'DecoratorNot':           addFull('\u27f5 inverts child',  'rgba(255,255,255,0.4)'); break;
+      case 'DecoratorAlwaysSuccess': addFull('\u2192 always \u2713', '#4ec9b0'); break;
+      case 'DecoratorAlwaysFailure': addFull('\u2192 always \u2717', '#f44747'); break;
+      case 'DecoratorAlwaysRunning': addFull('\u2192 always \u27f3', '#ffd580'); break;
       case 'WithPrecondition': addFull('runs if precond passes', 'rgba(255,255,255,0.35)'); break;
 
       // ── Composites ──
@@ -315,7 +315,7 @@ class GraphRenderer {
       case 'SelectorProbability': addFull('pick by weight', 'rgba(255,255,255,0.35)'); break;
       case 'SelectorStochastic':  addFull('pick randomly',  'rgba(255,255,255,0.35)'); break;
       case 'SequenceStochastic':  addFull('run all (random order)', 'rgba(255,255,255,0.35)'); break;
-      case 'ReferenceBehavior':   add('ref', p.ReferencedTreePath, '#7ec8e3'); break;
+      case 'ReferencedBehavior':  add('ref', p.ReferencedTreePath, '#7ec8e3'); break;
 
       // ── Attachments ── (plugin reads: "Opl","Operator","Opr","Phase","Negate")
       case 'Precondition':
@@ -336,7 +336,7 @@ class GraphRenderer {
         break;
 
       // ── Root ──
-      case 'Root': addFull('\u25b6  entry point', '#4ec9b0'); break;
+      case '__Root__': addFull('\u25b6  entry point', '#4ec9b0'); break;
 
       default: {
         const schema = getNodeProps(n.type);

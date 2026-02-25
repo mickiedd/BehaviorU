@@ -1,5 +1,7 @@
 // xml-export.js — Serialize graph to behaviac-compatible XML
 // Wire format: <property name="Key" value="Val"/>  (matches plugin's ParseNodeFromXML)
+// NOTE: The editor's "__Root__" node is a visual-only wrapper.
+//       The plugin has no "Root" class — the first real child becomes the XML root node.
 
 function exportToXML(graph) {
   const treeName = graph.treeName || 'BT_Unnamed';
@@ -30,9 +32,6 @@ function exportToXML(graph) {
     childMap[id].sort((a, b) => (nodeById[a]?.x || 0) - (nodeById[b]?.x || 0));
   }
 
-  const rootNode = nodes.find(n => n.type === 'Root') ||
-                   nodes.find(n => !parentOf[n.id] && !isAttachment(n.type));
-
   if (!nodes.length) {
     return `<?xml version="1.0" encoding="utf-8"?>\n<behavior name="${escXML(treeName)}" agenttype="BTAgent" version="5">\n</behavior>`;
   }
@@ -44,6 +43,13 @@ function exportToXML(graph) {
   function writeNode(nid, indent) {
     const n = nodeById[nid];
     if (!n) return;
+
+    // __Root__ is editor-only — transparent in XML, just write its children
+    if (isRootNode(n.type)) {
+      for (const kid of (childMap[nid] || [])) writeNode(kid, indent);
+      return;
+    }
+
     const pad  = '  '.repeat(indent);
     const props = buildProps(n);
     const atts  = attachMap[nid] || [];
@@ -76,16 +82,13 @@ function exportToXML(graph) {
     }
   }
 
-  if (rootNode) {
-    const topKids = childMap[rootNode.id] || [];
-    if (!topKids.length) {
-      lines.push(`  <node class="Root" id="${rootNode.id}"/>`);
-    } else {
-      lines.push(`  <node class="Root" id="${rootNode.id}">`);
-      for (const kid of topKids) writeNode(kid, 2);
-      lines.push(`  </node>`);
-    }
+  // Find the visual root node (or top-level nodes if no __Root__ exists)
+  const visualRoot = nodes.find(n => isRootNode(n.type));
+  if (visualRoot) {
+    // Write __Root__'s children directly at indent=1 (transparent)
+    for (const kid of (childMap[visualRoot.id] || [])) writeNode(kid, 1);
   } else {
+    // No __Root__ — write all parentless non-attachment nodes
     const topLevel = nodes.filter(n => !parentOf[n.id] && !isAttachment(n.type));
     for (const n of topLevel) writeNode(n.id, 1);
   }
@@ -98,12 +101,13 @@ function buildProps(n) {
   const schema = getNodeProps(n.type);
   const result = [];
 
-  // Always write the display label as "Name" if it differs from the type
-  if (n.label && n.label !== n.type) {
+  // Write the display label as "Name" if it differs from type's label/type string
+  const typeLabel = getDisplayLabel(n.type);
+  if (n.label && n.label !== n.type && n.label !== typeLabel) {
     result.push({ key: 'Name', value: n.label });
   }
 
-  // schema-defined props
+  // Schema-defined props
   for (const s of schema) {
     const val = (n.props && n.props[s.key] !== undefined) ? n.props[s.key] : s.default;
     if (val !== '' && val !== undefined && val !== null) {
@@ -111,7 +115,7 @@ function buildProps(n) {
       result.push({ key: s.key, value: s.type === 'bool' ? (val ? 'true' : 'false') : String(val) });
     }
   }
-  // extra custom props
+  // Extra custom props
   if (n.extraProps) {
     for (const [k, v] of Object.entries(n.extraProps)) {
       if (k && k !== '__warning' && v !== '') result.push({ key: k, value: String(v) });
