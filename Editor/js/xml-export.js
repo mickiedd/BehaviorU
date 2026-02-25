@@ -97,19 +97,24 @@ function exportToXML(graph) {
 function buildProps(n) {
   const schema = getNodeProps(n.type);
   const result = [];
-  // schema-defined props first
+
+  // Always write the display label as "Name" if it differs from the type
+  if (n.label && n.label !== n.type) {
+    result.push({ key: 'Name', value: n.label });
+  }
+
+  // schema-defined props
   for (const s of schema) {
     const val = (n.props && n.props[s.key] !== undefined) ? n.props[s.key] : s.default;
     if (val !== '' && val !== undefined && val !== null) {
-      // skip bool false unless it differs from default
       if (s.type === 'bool' && val === false && s.default === false) continue;
       result.push({ key: s.key, value: s.type === 'bool' ? (val ? 'true' : 'false') : String(val) });
     }
   }
-  // extra custom props (key/value pairs not in schema)
+  // extra custom props
   if (n.extraProps) {
     for (const [k, v] of Object.entries(n.extraProps)) {
-      if (k && v !== '') result.push({ key: k, value: String(v) });
+      if (k && k !== '__warning' && v !== '') result.push({ key: k, value: String(v) });
     }
   }
   return result;

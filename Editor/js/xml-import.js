@@ -55,14 +55,22 @@ function importFromXML(xmlStr, graph) {
   /** Normalize legacy key names to plugin-standard keys */
   function normKey(k) {
     const map = {
-      // BT_SimpleNPC.xml uses these; plugin C++ reads the right-hand values
-      'LeftOperand':  'Opl',
-      'RightOperand': 'Opr',
-      'MethodName':   'Method',
+      'LeftOperand':    'Opl',
+      'RightOperand':   'Opr',
+      'MethodName':     'Method',
       'ResultFuncName': 'ResultOption',
-      // operator string synonyms
     };
     return map[k] || k;
+  }
+
+  /** Warn about mismatched properties (e.g. Method on a Condition node) */
+  function warnBadProps(type, props) {
+    if (type === 'Condition' && props.Method && !props.Opl) {
+      console.warn(`[BehaviorU] Condition node id has "Method" but no "Opl"/"Opr" — ` +
+        `did you mean an Action node? Method="${props.Method}" will be shown but won't execute as a condition.`);
+      // Surface it anyway as extraProps so it's visible
+      props.__warning = `Method="${props.Method}" (should be Opl/Operator/Opr)`;
+    }
   }
 
   function parseNode(el, depth, sibIdx, parentId) {
@@ -73,12 +81,18 @@ function importFromXML(xmlStr, graph) {
     const type = rawType.split(':').pop();
 
     const props = readProps(el);
+    warnBadProps(type, props);
+
+    // Use the "Name" property as the display label if present
+    const label = props.Name || type;
+    // Remove Name from props so it doesn't pollute the schema fields
+    delete props.Name;
 
     // Position — BFS will reorder via autoLayout at the end
     const x = sibIdx * 200 + 60;
     const y = depth  * 130 + 60;
 
-    const node = { id, type, label: type, props, x, y, w: 180, h: 72, extraProps:{} };
+    const node = { id, type, label, props, x, y, w: 180, h: 72, extraProps:{} };
     graph.nodes.push(node);
     if (parentId !== null) graph.edges.push({ from: parentId, to: id });
 
@@ -99,12 +113,14 @@ function importFromXML(xmlStr, graph) {
     const id   = allocId(rawId);
     const type = rawType.split(':').pop();
     const props = readProps(el);
+    const label = props.Name || type;
+    delete props.Name;
 
     const parentNode = graph.nodes.find(n => n.id === parentId);
     const x = (parentNode?.x || 0) + 200;
     const y = (parentNode?.y || 0);
 
-    graph.nodes.push({ id, type, label: type, props, x, y, w: 180, h: 72, extraProps:{} });
+    graph.nodes.push({ id, type, label, props, x, y, w: 180, h: 72, extraProps:{} });
     graph.edges.push({ from: parentId, to: id });
   }
 

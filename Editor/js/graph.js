@@ -3,7 +3,7 @@
 const NODE_W = 180;
 const NODE_H = 72;      // default; dynamic per node
 const PORT_R = 6;
-const HEADER_H = 24;
+const HEADER_H = 30;    // taller to fit type + label name
 const BODY_LINE_H = 15; // px per info line in body
 
 class GraphRenderer {
@@ -147,25 +147,29 @@ class GraphRenderer {
     this._roundRect(ctx, n.x, n.y, w, h, 6);
     ctx.stroke();
 
-    // ── type label (header) ──
+    // ── header: type (small, top) + label (prominent, bottom) ──
     ctx.save();
-    ctx.fillStyle    = '#ffffff';
-    ctx.font         = 'bold 11px "Segoe UI", system-ui, sans-serif';
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(n.type, n.x + w / 2, n.y + HEADER_H / 2);
-    ctx.restore();
-
-    // ── custom label (if renamed) ──
     if (n.label && n.label !== n.type) {
-      ctx.save();
-      ctx.fillStyle    = 'rgba(255,255,255,0.55)';
-      ctx.font         = 'italic 9px "Segoe UI", system-ui, sans-serif';
-      ctx.textAlign    = 'right';
+      // Two-line header: type dim on top, label bright on bottom
+      ctx.fillStyle    = 'rgba(255,255,255,0.6)';
+      ctx.font         = '9px "Segoe UI", system-ui, sans-serif';
+      ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(this._truncate(ctx, '"' + n.label + '"', w - 8), n.x + w - 5, n.y + HEADER_H / 2);
-      ctx.restore();
+      ctx.fillText(n.type, n.x + w / 2, n.y + 7);
+
+      ctx.fillStyle    = '#ffffff';
+      ctx.font         = 'bold 11px "Segoe UI", system-ui, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(this._truncate(ctx, n.label, w - 10), n.x + w / 2, n.y + HEADER_H - 8);
+    } else {
+      // Single centered type label
+      ctx.fillStyle    = '#ffffff';
+      ctx.font         = 'bold 11px "Segoe UI", system-ui, sans-serif';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(n.type, n.x + w / 2, n.y + HEADER_H / 2);
     }
+    ctx.restore();
 
     // ── info lines in body ──
     if (lines.length > 0) {
