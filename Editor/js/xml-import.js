@@ -128,7 +128,7 @@ function autoLayout(graph) {
 
   const roots = graph.nodes.filter(n => !parentOf[n.id] && !isAttachment(n.type));
   const nodeById = Object.fromEntries(graph.nodes.map(n => [n.id, n]));
-  const DX = 180, DY = 100;
+  const DX = 200, DY = 130;
 
   function subtreeWidth(id) {
     const kids = childMap[id] || [];

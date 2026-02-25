@@ -1,9 +1,10 @@
 // graph.js — Canvas rendering, pan/zoom, hit-testing, node/edge drawing
 
-const NODE_W = 160;
-const NODE_H = 60;
+const NODE_W = 180;
+const NODE_H = 72;      // default; dynamic per node
 const PORT_R = 6;
-const HEADER_H = 22;
+const HEADER_H = 24;
+const BODY_LINE_H = 15; // px per info line in body
 
 class GraphRenderer {
   constructor(canvas, getGraph) {
@@ -110,84 +111,253 @@ class GraphRenderer {
   }
 
   _drawNode(ctx, n, selectedIds) {
-    const info   = NODE_TYPE_MAP[n.type] || { category: 'composite', label: n.type };
-    const col    = getCatColor(info.category);
-    const sel    = selectedIds && selectedIds.has(n.id);
-    const w = n.w || NODE_W, h = n.h || NODE_H;
+    const info  = NODE_TYPE_MAP[n.type] || { category: 'composite', label: n.type };
+    const col   = getCatColor(info.category);
+    const sel   = selectedIds && selectedIds.has(n.id);
 
-    // shadow
-    if (sel) {
-      ctx.shadowColor = col.header;
-      ctx.shadowBlur  = 12;
-    }
+    // Build info lines first so we can size the node
+    const lines  = this._getInfoLines(n);
+    const bodyH  = Math.max(32, lines.length * BODY_LINE_H + 10);
+    const w      = n.w || NODE_W;
+    const h      = HEADER_H + bodyH;
+    // update node height so hit-testing & ports stay accurate
+    n.h = h;
 
-    // body
+    // ── shadow / glow ──
+    if (sel) { ctx.shadowColor = col.header; ctx.shadowBlur = 14; }
+
+    // ── body ──
     ctx.fillStyle = col.bg;
     this._roundRect(ctx, n.x, n.y, w, h, 6);
     ctx.fill();
 
-    ctx.shadowBlur  = 0;
-    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
 
-    // header
-    ctx.fillStyle = col.header;
+    // ── header gradient ──
+    const grad = ctx.createLinearGradient(n.x, n.y, n.x, n.y + HEADER_H);
+    grad.addColorStop(0, col.header);
+    grad.addColorStop(1, this._darken(col.header, 0.22));
+    ctx.fillStyle = grad;
     this._roundRect(ctx, n.x, n.y, w, HEADER_H, [6, 6, 0, 0]);
     ctx.fill();
 
-    // border
-    ctx.strokeStyle = sel ? '#fff' : col.header;
+    // ── border ──
+    ctx.strokeStyle = sel ? '#ffffff' : col.header;
     ctx.lineWidth   = sel ? 2 : 1;
     this._roundRect(ctx, n.x, n.y, w, h, 6);
     ctx.stroke();
 
-    // type label in header
-    ctx.fillStyle  = '#fff';
-    ctx.font       = 'bold 10px Segoe UI, system-ui, sans-serif';
-    ctx.textAlign  = 'center';
+    // ── type label (header) ──
+    ctx.save();
+    ctx.fillStyle    = '#ffffff';
+    ctx.font         = 'bold 11px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(n.type, n.x + w/2, n.y + HEADER_H/2);
+    ctx.fillText(n.type, n.x + w / 2, n.y + HEADER_H / 2);
+    ctx.restore();
 
-    // display name / subtitle
-    const subtitle = n.label && n.label !== n.type ? n.label : this._getSubtitle(n);
-    if (subtitle) {
-      ctx.fillStyle  = '#aaa';
-      ctx.font       = '10px Segoe UI, system-ui, sans-serif';
-      ctx.textAlign  = 'center';
+    // ── custom label (if renamed) ──
+    if (n.label && n.label !== n.type) {
+      ctx.save();
+      ctx.fillStyle    = 'rgba(255,255,255,0.55)';
+      ctx.font         = 'italic 9px "Segoe UI", system-ui, sans-serif';
+      ctx.textAlign    = 'right';
       ctx.textBaseline = 'middle';
-      const maxW = w - 12;
-      const text = this._truncate(ctx, subtitle, maxW);
-      ctx.fillText(text, n.x + w/2, n.y + HEADER_H + (h - HEADER_H)/2);
+      ctx.fillText(this._truncate(ctx, '"' + n.label + '"', w - 8), n.x + w - 5, n.y + HEADER_H / 2);
+      ctx.restore();
     }
 
-    // ports
-    if (!isAttachment(n.type)) {
-      // top port (input)
-      this._drawPort(ctx, n.x + w/2, n.y, col.port, 'in', false);
-      // bottom port (output / children)
-      if (canHaveChildren(n.type)) {
-        this._drawPort(ctx, n.x + w/2, n.y + h, col.port, 'out', false);
+    // ── info lines in body ──
+    if (lines.length > 0) {
+      const startY = n.y + HEADER_H + 5 + BODY_LINE_H / 2;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const ly   = startY + i * BODY_LINE_H;
+        const pad  = 8;
+        const maxW = w - pad * 2;
+
+        ctx.save();
+        ctx.textAlign    = 'left';
+        ctx.textBaseline = 'middle';
+
+        // key label (dim)
+        if (line.key) {
+          ctx.fillStyle = 'rgba(180,180,180,0.55)';
+          ctx.font      = '9px "Segoe UI", system-ui, sans-serif';
+          const keyW = Math.min(ctx.measureText(line.key + ':').width + 2, maxW * 0.45);
+          ctx.fillText(this._truncate(ctx, line.key + ':', keyW + 4), n.x + pad, ly);
+
+          // value (bright)
+          ctx.fillStyle = line.valueColor || '#e8e8e8';
+          ctx.font      = '10px "Consolas", "Segoe UI", monospace';
+          const valX = n.x + pad + keyW + 4;
+          ctx.fillText(this._truncate(ctx, line.value, maxW - keyW - 4), valX, ly);
+        } else {
+          // single full-width value (no key prefix)
+          ctx.fillStyle = line.valueColor || '#e0e0e0';
+          ctx.font      = '10px "Segoe UI", system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(this._truncate(ctx, line.value, maxW), n.x + w / 2, ly);
+        }
+        ctx.restore();
       }
     } else {
-      // attachments: left port only
-      this._drawPort(ctx, n.x, n.y + h/2, col.port, 'in', false);
+      // empty body hint
+      ctx.save();
+      ctx.fillStyle    = 'rgba(255,255,255,0.18)';
+      ctx.font         = 'italic 10px "Segoe UI", system-ui, sans-serif';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('(no properties)', n.x + w / 2, n.y + HEADER_H + bodyH / 2);
+      ctx.restore();
+    }
+
+    // ── ports ──
+    if (!isAttachment(n.type)) {
+      this._drawPort(ctx, n.x + w / 2, n.y,     col.port, 'in',  false);
+      if (canHaveChildren(n.type))
+        this._drawPort(ctx, n.x + w / 2, n.y + h, col.port, 'out', false);
+    } else {
+      this._drawPort(ctx, n.x, n.y + h / 2, col.port, 'in', false);
     }
   }
 
-  _getSubtitle(n) {
-    if (!n.props) return '';
-    const p = n.props;
-    if (p.MethodName)     return p.MethodName;
-    if (p.Signal)         return '⏳ ' + p.Signal;
-    if (p.Message)        return '📋 ' + p.Message;
-    if (p.EventName)      return '⚡ ' + p.EventName;
-    if (p.Time)           return '⏱ ' + p.Time + 's';
-    if (p.Frames)         return '🎞 ' + p.Frames + 'f';
-    if (p.Count)          return '× ' + p.Count;
-    if (p.Opl && p.Operator && p.Opr) return `${p.Opl} ${opLabel(p.Operator)} ${p.Opr}`;
-    if (p.Opl && p.Opr)               return `${p.Opl} ← ${p.Opr}`;
-    if (p.ReferencedTreePath)          return '→ ' + p.ReferencedTreePath;
-    if (p.Weight)         return 'w=' + p.Weight;
-    return '';
+  /** Build display lines [{key, value, valueColor}] from node props */
+  _getInfoLines(n) {
+    const p = n.props || {};
+    const lines = [];
+
+    const add = (key, value, valueColor) => {
+      const v = String(value ?? '').trim();
+      if (v === '' || v === 'undefined') return;
+      lines.push({ key, value: v, valueColor });
+    };
+    const addFull = (value, valueColor) => {
+      const v = String(value ?? '').trim();
+      if (v === '') return;
+      lines.push({ key: null, value: v, valueColor });
+    };
+
+    switch (n.type) {
+      // ── Actions ──
+      case 'Action':
+        add('method', p.MethodName || '', '#7ec8e3');
+        if (p.ResultFuncName) add('result', p.ResultFuncName, '#b5cea8');
+        break;
+      case 'Assignment':
+        if (p.Opl || p.Opr) addFull(`${p.Opl || '?'} ← ${p.Opr || '?'}`, '#dcdcaa');
+        break;
+      case 'Compute':
+        if (p.Opl) addFull(`${p.Opl} = ${p.Opr1 || '?'} ${p.Operator || '+'} ${p.Opr2 || '?'}`, '#dcdcaa');
+        break;
+      case 'Wait':
+        add('time', (p.Time || '1.0') + ' s', '#c3e88d');
+        break;
+      case 'WaitFrames':
+        add('frames', p.Frames || '1', '#c3e88d');
+        break;
+      case 'WaitForSignal':
+        add('signal', p.Signal || '', '#f78c6c');
+        break;
+      case 'End':
+        add('status', p.EndStatus || 'Success', p.EndStatus === 'Failure' ? '#f44747' : '#4ec9b0');
+        break;
+
+      // ── Conditions ──
+      case 'Condition':
+      case 'Precondition':
+        if (p.Opl || p.Opr) {
+          const opSym = opLabel(p.Operator || 'Equal');
+          addFull(`${p.Opl || '?'} ${opSym} ${p.Opr || '?'}`, '#ffd580');
+        }
+        if (n.type === 'Precondition' && p.Phase) add('phase', p.Phase, '#bb9af7');
+        break;
+      case 'And': addFull('ALL children true', '#ffd580'); break;
+      case 'Or':  addFull('ANY child true',    '#ffd580'); break;
+      case 'True':  addFull('✓ Always Success', '#4ec9b0'); break;
+      case 'False': addFull('✗ Always Failure', '#f44747'); break;
+      case 'ConditionBase': addFull('(custom condition)', 'rgba(255,255,255,0.4)'); break;
+
+      // ── Decorators ──
+      case 'Loop':        add('count', p.Count === '-1' || p.Count === -1 ? '∞' : (p.Count || '∞'), '#c3e88d'); break;
+      case 'LoopUntil':   add('count', p.Count || '1', '#c3e88d'); add('until', p.Until || 'true', '#ffd580'); break;
+      case 'Repeat':
+      case 'Count':       add('count', p.Count || '1', '#c3e88d'); break;
+      case 'CountLimit':  add('max', p.Count || '1', '#c3e88d'); break;
+      case 'Time':        add('time', (p.Time || '1.0') + ' s', '#c3e88d'); break;
+      case 'Frames':      add('frames', p.Frames || '1', '#c3e88d'); break;
+      case 'FailureUntil':add('fail ×', p.Count || '1', '#f44747'); break;
+      case 'SuccessUntil':add('ok ×', p.Count || '1', '#4ec9b0'); break;
+      case 'Iterator':
+        if (p.Opl) add('list', p.Opl, '#7ec8e3');
+        if (p.Opr) add('var',  p.Opr, '#b5cea8');
+        break;
+      case 'Log':   add('msg', p.Message || '', '#b5cea8'); break;
+      case 'Weight':add('w',   p.Weight  || '1.0', '#ffd580'); break;
+      case 'Not':           addFull('⟵ inverts child', 'rgba(255,255,255,0.4)'); break;
+      case 'AlwaysSuccess': addFull('→ always ✓', '#4ec9b0'); break;
+      case 'AlwaysFailure': addFull('→ always ✗', '#f44747'); break;
+      case 'AlwaysRunning': addFull('→ always ⟳', '#ffd580'); break;
+      case 'WithPrecondition': addFull('runs if precond passes', 'rgba(255,255,255,0.4)'); break;
+
+      // ── Composites ──
+      case 'Selector':         addFull('try each → first ✓', 'rgba(255,255,255,0.4)'); break;
+      case 'Sequence':         addFull('run all → stop on ✗', 'rgba(255,255,255,0.4)'); break;
+      case 'Parallel': {
+        const fp = (p.FailurePolicy  || 'FailOnOne_SucceedOnAll').replace('FailOn','✗').replace('SucceedOn','✓').replace('_',' / ');
+        addFull(fp, 'rgba(255,255,255,0.5)');
+        break;
+      }
+      case 'IfElse':           addFull('[cond] → [then] / [else]', 'rgba(255,255,255,0.4)'); break;
+      case 'SelectorLoop':     addFull('loop until one ✓', 'rgba(255,255,255,0.4)'); break;
+      case 'SelectorProbability': addFull('pick by weight', 'rgba(255,255,255,0.4)'); break;
+      case 'SelectorStochastic':  addFull('pick randomly', 'rgba(255,255,255,0.4)'); break;
+      case 'SequenceStochastic':  addFull('run all in rand order', 'rgba(255,255,255,0.4)'); break;
+      case 'ReferenceBehavior':
+        add('ref', p.ReferencedTreePath || '', '#7ec8e3');
+        break;
+
+      // ── Attachments ──
+      case 'Effector':
+        if (p.Opl) addFull(`${p.Opl} ${opLabel(p.Operator||'Assign')} ${p.Opr||'?'}`, '#dcdcaa');
+        if (p.Phase) add('on', p.Phase, '#bb9af7');
+        break;
+      case 'Event':
+        add('event', p.EventName || '', '#f78c6c');
+        if (p.TriggeredOnce === true || p.TriggeredOnce === 'true')
+          addFull('once only', '#ffd580');
+        break;
+
+      // ── Root ──
+      case 'Root':
+        addFull('▶ entry point', '#4ec9b0');
+        break;
+
+      default:
+        // Generic: show first 2 schema props that have values
+        const schema = getNodeProps(n.type);
+        let shown = 0;
+        for (const s of schema) {
+          const v = p[s.key];
+          if (v !== undefined && v !== '' && v !== s.default && shown < 2) {
+            add(s.key, v); shown++;
+          }
+        }
+        break;
+    }
+
+    return lines;
+  }
+
+  /** Darken a hex color by `amount` (0-1) */
+  _darken(hex, amount) {
+    let r = parseInt(hex.slice(1,3),16);
+    let g = parseInt(hex.slice(3,5),16);
+    let b = parseInt(hex.slice(5,7),16);
+    r = Math.round(r * (1 - amount));
+    g = Math.round(g * (1 - amount));
+    b = Math.round(b * (1 - amount));
+    return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
   }
 
   _drawPort(ctx, x, y, color, _type, hovered) {
@@ -205,23 +375,21 @@ class GraphRenderer {
     const toNode   = nodes.find(n => n.id === e.to);
     if (!fromNode || !toNode) return;
 
+    const fw = fromNode.w || NODE_W, fh = fromNode.h || NODE_H;
+    const tw = toNode.w   || NODE_W, th = toNode.h   || NODE_H;
+
     let sx, sy, tx, ty;
     if (isAttachment(toNode.type)) {
-      // attachment edge: from right side of parent → left side of attachment
-      sx = fromNode.x + (fromNode.w || NODE_W);
-      sy = fromNode.y + (fromNode.h || NODE_H) / 2;
-      tx = toNode.x;
-      ty = toNode.y + (toNode.h || NODE_H) / 2;
+      sx = fromNode.x + fw;   sy = fromNode.y + fh / 2;
+      tx = toNode.x;           ty = toNode.y  + th / 2;
     } else {
-      sx = fromNode.x + (fromNode.w || NODE_W) / 2;
-      sy = fromNode.y + (fromNode.h || NODE_H);
-      tx = toNode.x   + (toNode.w  || NODE_W) / 2;
-      ty = toNode.y;
+      sx = fromNode.x + fw / 2; sy = fromNode.y + fh;
+      tx = toNode.x   + tw / 2; ty = toNode.y;
     }
 
     const sel = selectedEdge && selectedEdge.from === e.from && selectedEdge.to === e.to;
     ctx.save();
-    ctx.strokeStyle = sel ? '#fff' : (isAttachment(toNode.type) ? '#e74c3c' : '#555');
+    ctx.strokeStyle = sel ? '#fff' : (isAttachment(toNode.type) ? '#e74c3c' : '#666');
     ctx.lineWidth   = sel ? 2.5 : 1.8;
     ctx.setLineDash(isAttachment(toNode.type) ? [5,3] : []);
     ctx.beginPath();
@@ -229,16 +397,18 @@ class GraphRenderer {
     ctx.moveTo(sx, sy);
     ctx.bezierCurveTo(sx, cy, tx, cy, tx, ty);
     ctx.stroke();
-
-    // arrowhead
     ctx.setLineDash([]);
-    const angle = Math.atan2(ty - cy, tx - sx);
+
+    // arrowhead at destination
+    const angle = isAttachment(toNode.type)
+      ? Math.atan2(ty - sy, tx - sx)
+      : Math.PI / 2;  // pointing down
     ctx.fillStyle = ctx.strokeStyle;
     ctx.save();
     ctx.translate(tx, ty);
-    ctx.rotate(angle + (isAttachment(toNode.type) ? 0 : Math.PI/2));
+    ctx.rotate(angle);
     ctx.beginPath();
-    ctx.moveTo(0, -6); ctx.lineTo(4, 2); ctx.lineTo(-4, 2);
+    ctx.moveTo(0, -5); ctx.lineTo(4, 2); ctx.lineTo(-4, 2);
     ctx.closePath(); ctx.fill();
     ctx.restore();
     ctx.restore();
@@ -254,10 +424,8 @@ class GraphRenderer {
     ctx.save();
     ctx.strokeStyle = '#007acc'; ctx.lineWidth = 2; ctx.setLineDash([6,3]);
     ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.bezierCurveTo(sx, cy, tx, cy, tx, ty);
-    ctx.stroke();
-    ctx.restore();
+    ctx.moveTo(sx, sy); ctx.bezierCurveTo(sx, cy, tx, cy, tx, ty);
+    ctx.stroke(); ctx.restore();
   }
 
   _roundRect(ctx, x, y, w, h, r) {

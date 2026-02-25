@@ -683,7 +683,7 @@ function autoLayout(g) {
   const nodeById = Object.fromEntries(g.nodes.map(n => [n.id, n]));
   const roots = g.nodes.filter(n => !parentOf[n.id] && !isAttachment(n.type));
 
-  const DX = 190, DY = 110;
+  const DX = 200, DY = 130;
 
   function subW(id) {
     const kids = childMap[id] || [];
