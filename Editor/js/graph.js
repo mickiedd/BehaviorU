@@ -237,113 +237,112 @@ class GraphRenderer {
       if (v === '') return;
       lines.push({ key: null, value: v, valueColor });
     };
+    const opSym = op => ({Equal:'==',NotEqual:'!=',Greater:'>',Less:'<',GreaterEqual:'>=',LessEqual:'<=',
+                          Assign:'=',Add:'+',Sub:'-',Mul:'\u00d7',Div:'\u00f7'}[op] || op || '?');
+    const resultColor = r => r === 'BT_FAILURE' ? '#f44747' : r === 'BT_RUNNING' ? '#ffd580' : '#4ec9b0';
 
     switch (n.type) {
-      // ── Actions ──
+      // ── Actions ── (plugin reads: "Method", "ResultOption")
       case 'Action':
-        add('method', p.MethodName || '', '#7ec8e3');
-        if (p.ResultFuncName) add('result', p.ResultFuncName, '#b5cea8');
+        add('method', p.Method, '#7ec8e3');
+        if (p.ResultOption && p.ResultOption !== 'BT_SUCCESS')
+          add('\u2192', p.ResultOption, resultColor(p.ResultOption));
         break;
       case 'Assignment':
-        if (p.Opl || p.Opr) addFull(`${p.Opl || '?'} ← ${p.Opr || '?'}`, '#dcdcaa');
+        if (p.Opl || p.Opr) addFull(`${p.Opl || '?'}  \u2190  ${p.Opr || '?'}`, '#dcdcaa');
         break;
       case 'Compute':
-        if (p.Opl) addFull(`${p.Opl} = ${p.Opr1 || '?'} ${p.Operator || '+'} ${p.Opr2 || '?'}`, '#dcdcaa');
+        if (p.Opl) addFull(`${p.Opl} = ${p.Opr1||'?'} ${opSym(p.Operator)} ${p.Opr2||'?'}`, '#dcdcaa');
         break;
       case 'Wait':
-        add('time', (p.Time || '1.0') + ' s', '#c3e88d');
-        break;
+        add('time', (p.Time || '\u2014') + ' s', '#c3e88d'); break;
       case 'WaitFrames':
-        add('frames', p.Frames || '1', '#c3e88d');
-        break;
+        add('frames', p.Frames || '\u2014', '#c3e88d'); break;
       case 'WaitForSignal':
-        add('signal', p.Signal || '', '#f78c6c');
-        break;
+        add('signal', p.Signal, '#f78c6c'); break;
       case 'End':
-        add('status', p.EndStatus || 'Success', p.EndStatus === 'Failure' ? '#f44747' : '#4ec9b0');
-        break;
+        add('status', p.EndStatus || 'BT_SUCCESS', resultColor(p.EndStatus)); break;
 
-      // ── Conditions ──
+      // ── Conditions ── (plugin reads: "Opl", "Operator", "Opr")
       case 'Condition':
-      case 'Precondition':
-        if (p.Opl || p.Opr) {
-          const opSym = opLabel(p.Operator || 'Equal');
-          addFull(`${p.Opl || '?'} ${opSym} ${p.Opr || '?'}`, '#ffd580');
-        }
-        if (n.type === 'Precondition' && p.Phase) add('phase', p.Phase, '#bb9af7');
+        if (p.Opl || p.Opr)
+          addFull(`${p.Opl||'?'}  ${opSym(p.Operator)}  ${p.Opr||'?'}`, '#ffd580');
         break;
-      case 'And': addFull('ALL children true', '#ffd580'); break;
-      case 'Or':  addFull('ANY child true',    '#ffd580'); break;
-      case 'True':  addFull('✓ Always Success', '#4ec9b0'); break;
-      case 'False': addFull('✗ Always Failure', '#f44747'); break;
-      case 'ConditionBase': addFull('(custom condition)', 'rgba(255,255,255,0.4)'); break;
+      case 'And':   addFull('ALL children true', '#ffd580'); break;
+      case 'Or':    addFull('ANY child true',    '#ffd580'); break;
+      case 'True':  addFull('\u2713  Always Success', '#4ec9b0'); break;
+      case 'False': addFull('\u2717  Always Failure', '#f44747'); break;
+      case 'ConditionBase': addFull('(custom condition)', 'rgba(255,255,255,0.35)'); break;
 
       // ── Decorators ──
-      case 'Loop':        add('count', p.Count === '-1' || p.Count === -1 ? '∞' : (p.Count || '∞'), '#c3e88d'); break;
-      case 'LoopUntil':   add('count', p.Count || '1', '#c3e88d'); add('until', p.Until || 'true', '#ffd580'); break;
-      case 'Repeat':
-      case 'Count':       add('count', p.Count || '1', '#c3e88d'); break;
-      case 'CountLimit':  add('max', p.Count || '1', '#c3e88d'); break;
-      case 'Time':        add('time', (p.Time || '1.0') + ' s', '#c3e88d'); break;
-      case 'Frames':      add('frames', p.Frames || '1', '#c3e88d'); break;
-      case 'FailureUntil':add('fail ×', p.Count || '1', '#f44747'); break;
-      case 'SuccessUntil':add('ok ×', p.Count || '1', '#4ec9b0'); break;
+      case 'Loop':
+        add('count', (p.Count === '-1' || p.Count === -1) ? '\u221e' : (p.Count || '\u221e'), '#c3e88d'); break;
+      case 'LoopUntil':
+        add('count', p.Count || '1', '#c3e88d');
+        add('until', p.Until || 'true', '#ffd580'); break;
+      case 'Repeat': case 'Count':
+        add('count', p.Count || '1', '#c3e88d'); break;
+      case 'CountLimit':
+        add('max', p.Count || '1', '#c3e88d'); break;
+      case 'Time':   add('time', (p.Time || '\u2014') + ' s', '#c3e88d'); break;
+      case 'Frames': add('frames', p.Frames || '\u2014', '#c3e88d'); break;
+      case 'FailureUntil': add('fail \u00d7', p.Count || '1', '#f44747'); break;
+      case 'SuccessUntil': add('ok \u00d7', p.Count || '1', '#4ec9b0'); break;
       case 'Iterator':
-        if (p.Opl) add('list', p.Opl, '#7ec8e3');
-        if (p.Opr) add('var',  p.Opr, '#b5cea8');
-        break;
-      case 'Log':   add('msg', p.Message || '', '#b5cea8'); break;
-      case 'Weight':add('w',   p.Weight  || '1.0', '#ffd580'); break;
-      case 'Not':           addFull('⟵ inverts child', 'rgba(255,255,255,0.4)'); break;
-      case 'AlwaysSuccess': addFull('→ always ✓', '#4ec9b0'); break;
-      case 'AlwaysFailure': addFull('→ always ✗', '#f44747'); break;
-      case 'AlwaysRunning': addFull('→ always ⟳', '#ffd580'); break;
-      case 'WithPrecondition': addFull('runs if precond passes', 'rgba(255,255,255,0.4)'); break;
+        add('list', p.Opl, '#7ec8e3');
+        add('var',  p.Opr, '#b5cea8'); break;
+      case 'Log':    add('msg', p.Message, '#b5cea8'); break;
+      case 'Weight': add('w', p.Weight || '1.0', '#ffd580'); break;
+      case 'Not':           addFull('\u27f5 inverts child',  'rgba(255,255,255,0.4)'); break;
+      case 'AlwaysSuccess': addFull('\u2192 always \u2713', '#4ec9b0'); break;
+      case 'AlwaysFailure': addFull('\u2192 always \u2717', '#f44747'); break;
+      case 'AlwaysRunning': addFull('\u2192 always \u27f3', '#ffd580'); break;
+      case 'WithPrecondition': addFull('runs if precond passes', 'rgba(255,255,255,0.35)'); break;
 
       // ── Composites ──
-      case 'Selector':         addFull('try each → first ✓', 'rgba(255,255,255,0.4)'); break;
-      case 'Sequence':         addFull('run all → stop on ✗', 'rgba(255,255,255,0.4)'); break;
+      case 'Selector':          addFull('try each  \u2192  first \u2713', 'rgba(255,255,255,0.35)'); break;
+      case 'Sequence':          addFull('run all  \u2192  stop on \u2717', 'rgba(255,255,255,0.35)'); break;
       case 'Parallel': {
-        const fp = (p.FailurePolicy  || 'FailOnOne_SucceedOnAll').replace('FailOn','✗').replace('SucceedOn','✓').replace('_',' / ');
-        addFull(fp, 'rgba(255,255,255,0.5)');
-        break;
+        const fp = (p.FailurePolicy || '').replace('FailOnOne_SucceedOnAll','1\u2717 stops');
+        addFull(fp || 'parallel', 'rgba(255,255,255,0.45)'); break;
       }
-      case 'IfElse':           addFull('[cond] → [then] / [else]', 'rgba(255,255,255,0.4)'); break;
-      case 'SelectorLoop':     addFull('loop until one ✓', 'rgba(255,255,255,0.4)'); break;
-      case 'SelectorProbability': addFull('pick by weight', 'rgba(255,255,255,0.4)'); break;
-      case 'SelectorStochastic':  addFull('pick randomly', 'rgba(255,255,255,0.4)'); break;
-      case 'SequenceStochastic':  addFull('run all in rand order', 'rgba(255,255,255,0.4)'); break;
-      case 'ReferenceBehavior':
-        add('ref', p.ReferencedTreePath || '', '#7ec8e3');
-        break;
+      case 'IfElse':            addFull('[cond] \u2192 [then] / [else]', 'rgba(255,255,255,0.35)'); break;
+      case 'SelectorLoop':      addFull('loop until one \u2713', 'rgba(255,255,255,0.35)'); break;
+      case 'SelectorProbability': addFull('pick by weight', 'rgba(255,255,255,0.35)'); break;
+      case 'SelectorStochastic':  addFull('pick randomly',  'rgba(255,255,255,0.35)'); break;
+      case 'SequenceStochastic':  addFull('run all (random order)', 'rgba(255,255,255,0.35)'); break;
+      case 'ReferenceBehavior':   add('ref', p.ReferencedTreePath, '#7ec8e3'); break;
 
-      // ── Attachments ──
+      // ── Attachments ── (plugin reads: "Opl","Operator","Opr","Phase","Negate")
+      case 'Precondition':
+        if (p.Opl || p.Opr)
+          addFull(`${p.Opl||'?'}  ${opSym(p.Operator)}  ${p.Opr||'?'}`, '#ffd580');
+        if (p.Phase) add('phase', p.Phase, '#bb9af7');
+        if (p.Negate === true || p.Negate === 'true') addFull('(negated)', '#f44747');
+        break;
       case 'Effector':
-        if (p.Opl) addFull(`${p.Opl} ${opLabel(p.Operator||'Assign')} ${p.Opr||'?'}`, '#dcdcaa');
+        if (p.Opl || p.Opr)
+          addFull(`${p.Opl||'?'} ${opSym(p.Operator)} ${p.Opr||'?'}`, '#dcdcaa');
         if (p.Phase) add('on', p.Phase, '#bb9af7');
         break;
       case 'Event':
-        add('event', p.EventName || '', '#f78c6c');
+        add('event', p.EventName, '#f78c6c');
         if (p.TriggeredOnce === true || p.TriggeredOnce === 'true')
           addFull('once only', '#ffd580');
         break;
 
       // ── Root ──
-      case 'Root':
-        addFull('▶ entry point', '#4ec9b0');
-        break;
+      case 'Root': addFull('\u25b6  entry point', '#4ec9b0'); break;
 
-      default:
-        // Generic: show first 2 schema props that have values
+      default: {
         const schema = getNodeProps(n.type);
         let shown = 0;
         for (const s of schema) {
           const v = p[s.key];
-          if (v !== undefined && v !== '' && v !== s.default && shown < 2) {
-            add(s.key, v); shown++;
-          }
+          if (v !== undefined && v !== '' && shown < 2) { add(s.key, v); shown++; }
         }
         break;
+      }
     }
 
     return lines;
