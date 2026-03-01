@@ -1,9 +1,0 @@
-{
-	"BuildId": "37670630",
-	"Modules": 
-	{
-		"BehaviacEditor": "UnrealEditor-BehaviacEditor-Mac-DebugGame.dylib",
-		"BehaviacRuntime": "UnrealEditor-BehaviacRuntime-Mac-DebugGame.dylib",
-		"BehaviacTests": "UnrealEditor-BehaviacTests-Mac-DebugGame.dylib"
-	}
-}

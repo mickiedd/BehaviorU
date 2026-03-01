@@ -1,9 +1,0 @@
-{
-	"BuildId": "37670630",
-	"Modules": 
-	{
-		"BehaviacEditor": "UnrealEditor-BehaviacEditor.dylib",
-		"BehaviacRuntime": "UnrealEditor-BehaviacRuntime.dylib",
-		"BehaviacTests": "UnrealEditor-BehaviacTests.dylib"
-	}
-}
