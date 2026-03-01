@@ -1,0 +1,12 @@
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/BehaviorTree/BehaviacBehaviorTree.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/BehaviorTree/BehaviacBehaviorNode.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/BehaviorTree/BehaviacBehaviorTask.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/BehaviacTypes.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/BehaviorTree/Attachments/BehaviacAttachment.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/FSM/BehaviacFSM.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/BehaviacAgent.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/BehaviorTree/Composites/BehaviacComposites.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/BehaviorTree/Conditions/BehaviacConditions.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/BehaviorTree/Actions/BehaviacActions.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/HTN/BehaviacHTN.h
+/Volumes/M2/Works/Crunch-master/Plugins/BehaviacPlugin/Source/BehaviacRuntime/Public/BehaviorTree/Decorators/BehaviacDecorators.h
